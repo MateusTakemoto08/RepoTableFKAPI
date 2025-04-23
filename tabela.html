@@ -18,12 +18,19 @@
           <th>Categoria</th>
           <th>Imagem</th>
           <th>Quantidade</th>
-          <th>Valor Total</th>
+          <th>Desconto</th>
+          <th>Valor Total com Desconto</th>
         </tr>
       </thead>
       <tbody id="products-table-body">
-        <!-- Dados serão inseridos aqui pelo JavaScript -->
+        <!-- Produtos serão inseridos aqui -->
       </tbody>
+      <tfoot class="table-secondary">
+        <tr>
+          <td colspan="7" class="text-end fw-bold">Soma Total com Desconto:</td>
+          <td id="soma-total" class="fw-bold">$0.00</td>
+        </tr>
+      </tfoot>
     </table>
   </div>
 
@@ -32,10 +39,16 @@
       .then(response => response.json())
       .then(data => {
         const tableBody = document.getElementById('products-table-body');
+        const somaTotalCell = document.getElementById('soma-total');
+
+        let somaTotalComDesconto = 0;
+        const quantidade = 1;
+        const desconto = 0.10; // 10%
 
         data.forEach(product => {
-          const quantidade = 1; // ou defina dinamicamente
           const valorTotal = product.price * quantidade;
+          const valorComDesconto = valorTotal * (1 - desconto);
+          somaTotalComDesconto += valorComDesconto;
 
           const row = `
             <tr>
@@ -45,11 +58,14 @@
               <td>${product.category}</td>
               <td><img src="${product.image}" alt="Imagem do Produto" height="50"></td>
               <td>${quantidade}</td>
-              <td>$${valorTotal.toFixed(2)}</td>
+              <td>${(desconto * 100).toFixed(0)}%</td>
+              <td>$${valorComDesconto.toFixed(2)}</td>
             </tr>
           `;
           tableBody.innerHTML += row;
         });
+
+        somaTotalCell.textContent = `$${somaTotalComDesconto.toFixed(2)}`;
       })
       .catch(error => {
         console.error('Erro ao buscar os produtos:', error);
