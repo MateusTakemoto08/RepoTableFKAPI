@@ -4,70 +4,80 @@
   <meta charset="UTF-8">
   <title>Produtos FakeStore</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-light">
 
   <div class="container my-5">
     <h1 class="mb-4">Produtos da FakeStore API</h1>
 
-    <div class="d-flex justify-content-between mb-3">
-      <input type="text" id="searchInput" class="form-control w-50 me-2" placeholder="Buscar produto por título...">
-      <button class="btn btn-danger" id="btn-pdf">Gerar PDF</button>
+    <!-- Campo de pesquisa -->
+    <div class="input-group mb-4">
+      <input type="text" id="pesquisa" class="form-control" placeholder="Pesquisar produto por título...">
+      <button class="btn btn-primary" onclick="filtrarProdutos()">Pesquisar</button>
     </div>
 
-    <div id="tabela-produtos">
-      <table class="table table-striped table-bordered">
-        <thead class="table-dark">
-          <tr>
-            <th>ID</th>
-            <th>Título</th>
-            <th>Preço</th>
-            <th>Categoria</th>
-            <th>Imagem</th>
-            <th>Quantidade</th>
-            <th>Desconto</th>
-            <th>Valor Total com Desconto</th>
-          </tr>
-        </thead>
-        <tbody id="products-table-body"></tbody>
-        <tfoot class="table-secondary">
-          <tr>
-            <td colspan="7" class="text-end fw-bold">Soma Total com Desconto:</td>
-            <td id="soma-total" class="fw-bold">$0.00</td>
-          </tr>
-        </tfoot>
-      </table>
+    <!-- Gerador de CPF -->
+    <div class="mb-4">
+      <button class="btn btn-success" onclick="gerarCpf()">Gerar CPF</button>
+      <span class="ms-3 fw-bold" id="cpf-gerado"></span>
     </div>
+
+    <table class="table table-striped table-bordered">
+      <thead class="table-dark">
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Preço</th>
+          <th>Categoria</th>
+          <th>Imagem</th>
+          <th>Quantidade</th>
+          <th>Desconto</th>
+          <th>Valor Total com Desconto</th>
+        </tr>
+      </thead>
+      <tbody id="products-table-body"></tbody>
+      <tfoot class="table-secondary">
+        <tr>
+          <td colspan="7" class="text-end fw-bold">Soma Total com Desconto:</td>
+          <td id="soma-total" class="fw-bold">$0.00</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <canvas id="graficoProdutos" width="400" height="200" class="my-5"></canvas>
   </div>
 
   <script>
-    let produtos = [];
+    let produtosOriginais = [];
 
-    const fetchProdutos = async () => {
-      try {
-        const response = await fetch('https://fakestoreapi.com/products');
-        const data = await response.json();
-        produtos = data;
-        renderTabela(produtos);
-      } catch (error) {
-        console.error('Erro ao buscar os produtos:', error);
-      }
-    };
+    fetch('https://fakestoreapi.com/products')
+      .then(response => response.json())
+      .then(data => {
+        produtosOriginais = data;
+        renderizarProdutos(data);
+      })
+      .catch(error => console.error('Erro ao buscar os produtos:', error));
 
-    const renderTabela = (produtosFiltrados) => {
+    function renderizarProdutos(produtos) {
       const tableBody = document.getElementById('products-table-body');
       const somaTotalCell = document.getElementById('soma-total');
-      const desconto = 0.10;
-      let somaTotalComDesconto = 0;
+      const ctx = document.getElementById('graficoProdutos').getContext('2d');
 
       tableBody.innerHTML = '';
+      somaTotalCell.textContent = '$0.00';
 
-      produtosFiltrados.forEach(product => {
-        const quantidade = product.rating.count; // puxando o count da avaliação como quantidade
+      let somaTotalComDesconto = 0;
+      const desconto = 0.10;
+      const categorias = {};
+
+      produtos.forEach(product => {
+        const quantidade = product.rating.count;
         const valorTotal = product.price * quantidade;
         const valorComDesconto = valorTotal * (1 - desconto);
         somaTotalComDesconto += valorComDesconto;
+
+        categorias[product.category] = (categorias[product.category] || 0) + quantidade;
 
         const row = `
           <tr>
@@ -85,27 +95,51 @@
       });
 
       somaTotalCell.textContent = `$${somaTotalComDesconto.toFixed(2)}`;
-    };
 
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-      const termo = e.target.value.toLowerCase();
-      const filtrados = produtos.filter(p => p.title.toLowerCase().includes(termo));
-      renderTabela(filtrados);
-    });
+      // Gráfico
+      if (window.myChart) window.myChart.destroy();
+      window.myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(categorias),
+          datasets: [{
+            label: 'Quantidade de Produtos por Categoria',
+            data: Object.values(categorias),
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
 
-    document.getElementById('btn-pdf').addEventListener('click', () => {
-      const tabela = document.getElementById('tabela-produtos');
-      const opt = {
-        margin:       0.5,
-        filename:     'produtos_fakestore.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
-      };
-      html2pdf().from(tabela).set(opt).save();
-    });
+    function filtrarProdutos() {
+      const termo = document.getElementById('pesquisa').value.toLowerCase();
+      const filtrados = produtosOriginais.filter(p => p.title.toLowerCase().includes(termo));
+      renderizarProdutos(filtrados);
+    }
 
-    fetchProdutos();
+    function gerarCpf() {
+      let n = [];
+      for (let i = 0; i < 9; i++) n.push(Math.floor(Math.random() * 10));
+      
+      let d1 = n.map((v, i) => v * (10 - i)).reduce((a, b) => a + b) % 11;
+      d1 = d1 < 2 ? 0 : 11 - d1;
+      n.push(d1);
+      
+      let d2 = n.map((v, i) => v * (11 - i)).reduce((a, b) => a + b) % 11;
+      d2 = d2 < 2 ? 0 : 11 - d2;
+      n.push(d2);
+
+      const cpf = n.join('').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+      document.getElementById('cpf-gerado').textContent = cpf;
+    }
   </script>
 
 </body>
