@@ -5,6 +5,8 @@
   <title>Produtos FakeStore</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body class="bg-light">
 
@@ -17,10 +19,9 @@
       <button class="btn btn-primary" onclick="filtrarProdutos()">Pesquisar</button>
     </div>
 
-    <!-- Gerador de CPF -->
-    <div class="mb-4">
-      <button class="btn btn-success" onclick="gerarCpf()">Gerar CPF</button>
-      <span class="ms-3 fw-bold" id="cpf-gerado"></span>
+    <!-- Botões adicionais -->
+    <div class="mb-4 d-flex gap-3">
+      <button class="btn btn-danger" onclick="gerarPDF()">Gerar PDF</button>
     </div>
 
     <table class="table table-striped table-bordered">
@@ -70,9 +71,9 @@
       let somaTotalComDesconto = 0;
       const desconto = 0.10;
       const categorias = {};
+      const quantidade = 1;
 
       produtos.forEach(product => {
-        const quantidade = product.rating.count;
         const valorTotal = product.price * quantidade;
         const valorComDesconto = valorTotal * (1 - desconto);
         somaTotalComDesconto += valorComDesconto;
@@ -125,20 +126,60 @@
       renderizarProdutos(filtrados);
     }
 
-    function gerarCpf() {
-      let n = [];
-      for (let i = 0; i < 9; i++) n.push(Math.floor(Math.random() * 10));
-      
-      let d1 = n.map((v, i) => v * (10 - i)).reduce((a, b) => a + b) % 11;
-      d1 = d1 < 2 ? 0 : 11 - d1;
-      n.push(d1);
-      
-      let d2 = n.map((v, i) => v * (11 - i)).reduce((a, b) => a + b) % 11;
-      d2 = d2 < 2 ? 0 : 11 - d2;
-      n.push(d2);
+    async function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const desconto = 0.10;
+      const quantidade = 1;
 
-      const cpf = n.join('').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-      document.getElementById('cpf-gerado').textContent = cpf;
+      doc.text('Relatório de Produtos com Imagens', 14, 15);
+
+      let y = 25;
+
+      for (const produto of produtosOriginais) {
+        const valorTotal = produto.price * quantidade;
+        const valorComDesconto = valorTotal * (1 - desconto);
+
+        // Adiciona texto
+        doc.setFontSize(10);
+        doc.text(`ID: ${produto.id}`, 14, y);
+        doc.text(`Título: ${produto.title}`, 14, y + 5);
+        doc.text(`Preço: $${produto.price.toFixed(2)}`, 14, y + 10);
+        doc.text(`Categoria: ${produto.category}`, 14, y + 15);
+        doc.text(`Quantidade: ${quantidade}`, 14, y + 20);
+        doc.text(`Desconto: ${(desconto * 100).toFixed(0)}%`, 14, y + 25);
+        doc.text(`Total com Desconto: $${valorComDesconto.toFixed(2)}`, 14, y + 30);
+
+        // Adiciona imagem
+        const imgData = await carregarImagemBase64(produto.image);
+        doc.addImage(imgData, 'JPEG', 140, y, 40, 40);
+
+        y += 50;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+      }
+
+      doc.save('relatorio_com_imagens.pdf');
+    }
+
+    function carregarImagemBase64(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.setAttribute('crossOrigin', 'anonymous');
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          canvas.width = this.naturalWidth;
+          canvas.height = this.naturalHeight;
+          canvas.getContext('2d').drawImage(this, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg'));
+        };
+        img.onerror = function () {
+          reject(new Error('Erro ao carregar imagem: ' + url));
+        };
+        img.src = url;
+      });
     }
   </script>
 
